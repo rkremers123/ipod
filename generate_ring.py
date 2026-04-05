@@ -29,7 +29,8 @@ def fn(v0, v1, v2):
     return (nx/l,ny/l,nz/l) if l>1e-12 else (0,0,1)
 
 def write_stl(path, tris):
-    hdr = b'Diamond Ring - Size 6 - Entina Tina2S V12' + b'\x00'*39
+    hdr = b'Diamond Ring - Size 6 - Entina Tina2S V12'
+    hdr = hdr + b'\x00' * (80 - len(hdr))   # always exactly 80 bytes
     with open(path,'wb') as f:
         f.write(hdr[:80]); f.write(struct.pack('<I',len(tris)))
         for v0,v1,v2 in tris:
