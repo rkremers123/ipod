@@ -1,20 +1,29 @@
-; Sliced by python slicer  →  mackenzie_nameplate.stl
-; Printer : Entina Tina2S V12
+;FLAVOR:Marlin
+;GENERATOR:python-slicer
+;TARGET_MACHINE.NAME:Entina Tina2S V12
+;PRINT.TIME:0
+;PRINT.SIZE.MIN.X:0
+;PRINT.SIZE.MIN.Y:0
+;PRINT.SIZE.MIN.Z:0
+;PRINT.SIZE.MAX.X:120.0
+;PRINT.SIZE.MAX.Y:120.0
+;LAYER_COUNT:0
+; Sliced : mackenzie_nameplate.stl
 ; Material: PLA  Nozzle: 0.4mm  Filament: 1.75mm
 ; Layer h : 0.2mm   Infill: 20%
 
-M104 S210      ; heat nozzle (no wait)
-M140 S60         ; heat bed (no wait)
-M109 S210      ; wait nozzle
-M190 S60         ; wait bed
+M104 S210   ; heat nozzle (no wait)
+M140 S60      ; heat bed (no wait)
+M109 S210   ; wait for nozzle
+M190 S60      ; wait for bed
 
-G28                  ; home all axes
-G21                  ; mm
-G90                  ; absolute XYZ
-M82                  ; absolute E
-G92 E0               ; zero E
+G21        ; set units to mm
+G90        ; absolute positioning
+M82        ; absolute extrusion
+G28        ; home all axes
+G92 E0     ; reset extruder
 
-; --- purge line (left edge) ---
+; --- purge line along left edge ---
 G1 Z0.3 F1200
 G1 X3 Y15 F6000
 G1 X3 Y85 E10 F1200

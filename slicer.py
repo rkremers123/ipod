@@ -220,29 +220,39 @@ class GCodeWriter:
     # ── public API ────────────────────────────────────────────────────────────
     def header(self, stl_name):
         w = self._w
-        w(f'; Sliced by python slicer  →  {os.path.basename(stl_name)}')
-        w(f'; Printer : Entina Tina2S V12')
+        # Marlin-flavour header — required by many firmware validators
+        w(';FLAVOR:Marlin')
+        w(';GENERATOR:python-slicer')
+        w(f';TARGET_MACHINE.NAME:Entina Tina2S V12')
+        w(f';PRINT.TIME:0')
+        w(f';PRINT.SIZE.MIN.X:0')
+        w(f';PRINT.SIZE.MIN.Y:0')
+        w(f';PRINT.SIZE.MIN.Z:0')
+        w(f';PRINT.SIZE.MAX.X:{BED_X}')
+        w(f';PRINT.SIZE.MAX.Y:{BED_Y}')
+        w(f';LAYER_COUNT:0')
+        w(f'; Sliced : {os.path.basename(stl_name)}')
         w(f'; Material: PLA  Nozzle: {NOZZLE_D}mm  Filament: {FILAMENT_D}mm')
         w(f'; Layer h : {LAYER_H}mm   Infill: {INFILL_PCT}%')
         w('')
-        w(f'M104 S{NOZZLE_T}      ; heat nozzle (no wait)')
-        w(f'M140 S{BED_T}         ; heat bed (no wait)')
-        w(f'M109 S{NOZZLE_T}      ; wait nozzle')
-        w(f'M190 S{BED_T}         ; wait bed')
+        w(f'M104 S{NOZZLE_T}   ; heat nozzle (no wait)')
+        w(f'M140 S{BED_T}      ; heat bed (no wait)')
+        w(f'M109 S{NOZZLE_T}   ; wait for nozzle')
+        w(f'M190 S{BED_T}      ; wait for bed')
         w('')
-        w('G28                  ; home all axes')
-        w('G21                  ; mm')
-        w('G90                  ; absolute XYZ')
-        w('M82                  ; absolute E')
-        w('G92 E0               ; zero E')
+        w('G21        ; set units to mm')
+        w('G90        ; absolute positioning')
+        w('M82        ; absolute extrusion')
+        w('G28        ; home all axes')
+        w('G92 E0     ; reset extruder')
         w('')
-        w('; --- purge line (left edge) ---')
+        w('; --- purge line along left edge ---')
         w('G1 Z0.3 F1200')
         w('G1 X3 Y15 F6000')
         w(f'G1 X3 Y85 E10 F{SPD_FIRST}')
         w('G92 E0')
         w('')
-        # sync state
+        # sync internal state
         self.E = 0.0
         self.retracted = False
         self.cx = 3.0
