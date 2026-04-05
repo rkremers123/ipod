@@ -1,33 +1,27 @@
-;FLAVOR:Marlin
-;GENERATOR:python-slicer
-;TARGET_MACHINE.NAME:Entina Tina2S V12
-;PRINT.TIME:0
-;PRINT.SIZE.MIN.X:0
-;PRINT.SIZE.MIN.Y:0
-;PRINT.SIZE.MIN.Z:0
-;PRINT.SIZE.MAX.X:120.0
-;PRINT.SIZE.MAX.Y:120.0
-;LAYER_COUNT:0
+;MachineType:TINA2S
+;FilamentType:PLA
+;InfillDensity:20
+;NozzleTemperature:210
+;BedTemperature:60
 ; Sliced : mackenzie_nameplate.stl
-; Material: PLA  Nozzle: 0.4mm  Filament: 1.75mm
-; Layer h : 0.2mm   Infill: 20%
+; Nozzle: 0.4mm  Filament: 1.75mm  Layer: 0.2mm
 
-M104 S210   ; heat nozzle (no wait)
-M140 S60      ; heat bed (no wait)
-M109 S210   ; wait for nozzle
-M190 S60      ; wait for bed
-
-G21        ; set units to mm
-G90        ; absolute positioning
-M82        ; absolute extrusion
-G28        ; home all axes
-G92 E0     ; reset extruder
-
-; --- purge line along left edge ---
-G1 Z0.3 F1200
-G1 X3 Y15 F6000
-G1 X3 Y85 E10 F1200
-G92 E0
+M104 S150          ; preheat nozzle (no wait)
+M203 Z15           ; set max Z speed
+G28                ; home all axes
+G29                ; auto bed leveling
+M107               ; fan off
+G90                ; absolute positioning
+M82                ; absolute extrusion
+M109 S210  ; wait for nozzle temp
+G92 E0             ; reset extruder
+G1 E-3 F300        ; retract
+G92 E0             ; reset extruder
+; --- prime line ---
+G1 X0 Y0 Z0.3 F3000
+G1 X60 E9 F1000
+G1 X100 E12.5 F1000
+G92 E0             ; reset extruder after prime
 
 
 ; layer 1  z=0.250
@@ -79164,10 +79158,13 @@ G1 X90.430 Y60.367 E1672.83884 F3600
 ; layer 118  z=23.650
 G1 Z23.650 F1200
 
-; --- end print ---
+; --- end print (Tina2S confirmed end G-code) ---
 M104 S0             ; nozzle off
 M140 S0             ; bed off
 G91                 ; relative
-G1 Z10 F1200        ; raise nozzle
-G28 X0 Y0           ; home XY
-M84                 ; motors off
+G1 E-1 F300         ; retract
+G1 Z10 E-5 F3000    ; raise nozzle
+G90                 ; absolute
+G1 X0 Y100 F3000    ; move to back
+M84                 ; disable motors
+M107                ; fan off

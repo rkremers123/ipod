@@ -220,43 +220,38 @@ class GCodeWriter:
     # ── public API ────────────────────────────────────────────────────────────
     def header(self, stl_name):
         w = self._w
-        # Marlin-flavour header — required by many firmware validators
-        w(';FLAVOR:Marlin')
-        w(';GENERATOR:python-slicer')
-        w(f';TARGET_MACHINE.NAME:Entina Tina2S V12')
-        w(f';PRINT.TIME:0')
-        w(f';PRINT.SIZE.MIN.X:0')
-        w(f';PRINT.SIZE.MIN.Y:0')
-        w(f';PRINT.SIZE.MIN.Z:0')
-        w(f';PRINT.SIZE.MAX.X:{BED_X}')
-        w(f';PRINT.SIZE.MAX.Y:{BED_Y}')
-        w(f';LAYER_COUNT:0')
+        # ── Tina2S required header (firmware reads MachineType on line 1) ──
+        w(';MachineType:TINA2S')
+        w(f';FilamentType:PLA')
+        w(f';InfillDensity:{INFILL_PCT}')
+        w(f';NozzleTemperature:{NOZZLE_T}')
+        w(f';BedTemperature:{BED_T}')
         w(f'; Sliced : {os.path.basename(stl_name)}')
-        w(f'; Material: PLA  Nozzle: {NOZZLE_D}mm  Filament: {FILAMENT_D}mm')
-        w(f'; Layer h : {LAYER_H}mm   Infill: {INFILL_PCT}%')
+        w(f'; Nozzle: {NOZZLE_D}mm  Filament: {FILAMENT_D}mm  Layer: {LAYER_H}mm')
         w('')
-        w(f'M104 S{NOZZLE_T}   ; heat nozzle (no wait)')
-        w(f'M140 S{BED_T}      ; heat bed (no wait)')
-        w(f'M109 S{NOZZLE_T}   ; wait for nozzle')
-        w(f'M190 S{BED_T}      ; wait for bed')
-        w('')
-        w('G21        ; set units to mm')
-        w('G90        ; absolute positioning')
-        w('M82        ; absolute extrusion')
-        w('G28        ; home all axes')
-        w('G92 E0     ; reset extruder')
-        w('')
-        w('; --- purge line along left edge ---')
-        w('G1 Z0.3 F1200')
-        w('G1 X3 Y15 F6000')
-        w(f'G1 X3 Y85 E10 F{SPD_FIRST}')
-        w('G92 E0')
+        # ── Tina2S confirmed start G-code (from official Cura definition) ──
+        w(f'M104 S150          ; preheat nozzle (no wait)')
+        w(f'M203 Z15           ; set max Z speed')
+        w('G28                ; home all axes')
+        w('G29                ; auto bed leveling')
+        w('M107               ; fan off')
+        w('G90                ; absolute positioning')
+        w('M82                ; absolute extrusion')
+        w(f'M109 S{NOZZLE_T}  ; wait for nozzle temp')
+        w('G92 E0             ; reset extruder')
+        w('G1 E-3 F300        ; retract')
+        w('G92 E0             ; reset extruder')
+        w('; --- prime line ---')
+        w('G1 X0 Y0 Z0.3 F3000')
+        w('G1 X60 E9 F1000')
+        w('G1 X100 E12.5 F1000')
+        w('G92 E0             ; reset extruder after prime')
         w('')
         # sync internal state
         self.E = 0.0
         self.retracted = False
-        self.cx = 3.0
-        self.cy = 85.0
+        self.cx = 100.0
+        self.cy = 0.0
 
     def layer(self, z):
         self._w(f'G1 Z{z:.3f} F1200')
@@ -286,13 +281,16 @@ class GCodeWriter:
     def footer(self):
         w = self._w
         w('')
-        w('; --- end print ---')
+        w('; --- end print (Tina2S confirmed end G-code) ---')
         w('M104 S0             ; nozzle off')
         w('M140 S0             ; bed off')
         w('G91                 ; relative')
-        w('G1 Z10 F1200        ; raise nozzle')
-        w('G28 X0 Y0           ; home XY')
-        w('M84                 ; motors off')
+        w('G1 E-1 F300         ; retract')
+        w('G1 Z10 E-5 F3000    ; raise nozzle')
+        w('G90                 ; absolute')
+        w('G1 X0 Y100 F3000    ; move to back')
+        w('M84                 ; disable motors')
+        w('M107                ; fan off')
 
     def close(self):
         self.f.close()
