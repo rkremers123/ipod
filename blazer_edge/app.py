@@ -122,10 +122,15 @@ with st.sidebar:
             "Trade Analyzer",
             "Player DNA (Archetypes)",
             "Contract Efficiency",
+            "Owner's ROI Dashboard",
         ],
     )
 
     st.divider()
+    st.markdown(
+        "<p style='color:#444; font-size:0.75em;'>Efficiency-first franchise analytics</p>",
+        unsafe_allow_html=True,
+    )
     st.markdown(
         "<p style='color:#555; font-size:0.75em;'>Built with Python · nba_api · scikit-learn · Blazer Edge v1.0</p>",
         unsafe_allow_html=True,
@@ -887,6 +892,356 @@ elif page == "Contract Efficiency":
     )
     fig_por_eff.update_layout(height=max(300, len(por_eff) * 40 + 80), showlegend=False, coloraxis_showscale=False)
     st.plotly_chart(fig_por_eff, use_container_width=True)
+
+# ===========================================================================
+# PAGE 6: OWNER'S ROI DASHBOARD
+# ===========================================================================
+elif page == "Owner's ROI Dashboard":
+    st.title("Owner's ROI Dashboard")
+    st.markdown(
+        """
+> *"The goal is not to spend the most — it's to extract the most value from every dollar committed.
+> Great franchises are built on asymmetric information, not symmetric spending."*
+"""
+    )
+
+    st.divider()
+
+    # ---- Philosophy callout ----
+    st.markdown(
+        """
+### The Efficiency-First Franchise Model
+
+The most successful small-market rebuilds in North American professional sports share a common trait:
+they identified **market inefficiencies before the rest of the league caught on**.
+
+The Carolina Hurricanes (NHL) built a perennial playoff contender by **prioritizing possession metrics
+and defensive structure** over star salaries — reaching the Conference Finals on a below-median payroll.
+The Oklahoma City Thunder assembled a dynasty through **draft capital accumulation and rookie contract leverage**.
+The San Antonio Spurs sustained two decades of contention through **system fit over name value**.
+
+The data model below applies this same philosophy to the 2024-25 NBA landscape and the Blazers' specific situation.
+"""
+    )
+
+    # ---- Payroll Efficiency Benchmark ----
+    st.subheader("Payroll Efficiency — League Benchmarking")
+    st.markdown(
+        "How much **Blazer Edge Score** is each team generating per \\$1M of payroll? "
+        "This is the franchise-level equivalent of wins-per-dollar."
+    )
+
+    team_eff = (
+        df.groupby("TEAM_ABBREVIATION")
+        .agg(
+            Total_BES=("BES", "sum"),
+            Total_Salary=("SALARY_2425", "sum"),
+            Players=("PLAYER_NAME", "count"),
+            Avg_BES=("BES", "mean"),
+        )
+        .reset_index()
+    )
+    team_eff = team_eff[team_eff["Total_Salary"] > 0].copy()
+    team_eff["BES_per_M"] = team_eff["Total_BES"] / (team_eff["Total_Salary"] / 1_000_000)
+    team_eff["Salary_M"] = team_eff["Total_Salary"] / 1_000_000
+    team_eff = team_eff.sort_values("BES_per_M", ascending=False).reset_index(drop=True)
+    team_eff["Rank"] = team_eff.index + 1
+    team_eff["Is_POR"] = team_eff["TEAM_ABBREVIATION"] == "POR"
+
+    por_rank = team_eff[team_eff["Is_POR"]]["Rank"].values
+    por_rank_str = f"#{int(por_rank[0])}" if len(por_rank) > 0 else "N/A"
+    por_bes_pm = team_eff[team_eff["Is_POR"]]["BES_per_M"].values
+    league_avg_bes_pm = team_eff["BES_per_M"].mean()
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("POR Payroll Efficiency Rank", por_rank_str, help="Among all teams by BES per $1M spent")
+    with c2:
+        v = por_bes_pm[0] if len(por_bes_pm) > 0 else 0
+        st.metric("POR BES per $1M", f"{v:.2f}", delta=f"{v - league_avg_bes_pm:+.2f} vs league avg")
+    with c3:
+        best_team = team_eff.iloc[0]["TEAM_ABBREVIATION"]
+        st.metric("League Leader", best_team)
+    with c4:
+        st.metric("League Avg BES/$1M", f"{league_avg_bes_pm:.2f}")
+
+    fig_team_eff = go.Figure(
+        go.Bar(
+            x=team_eff["TEAM_ABBREVIATION"],
+            y=team_eff["BES_per_M"],
+            marker_color=[BLAZERS_RED if t == "POR" else "#444" for t in team_eff["TEAM_ABBREVIATION"]],
+            text=team_eff["BES_per_M"].round(2),
+            textposition="outside",
+            hovertemplate="<b>%{x}</b><br>BES per $1M: %{y:.2f}<extra></extra>",
+        )
+    )
+    fig_team_eff.add_hline(
+        y=league_avg_bes_pm,
+        line_dash="dash",
+        line_color="rgba(255,255,255,0.4)",
+        annotation_text=f"League avg: {league_avg_bes_pm:.2f}",
+        annotation_position="top right",
+    )
+    fig_team_eff.update_layout(
+        title="Team Payroll Efficiency — BES Generated per $1M Spent",
+        xaxis_title="Team",
+        yaxis_title="BES per $1M",
+        height=420,
+        **CHART_DEFAULTS,
+    )
+    st.plotly_chart(fig_team_eff, use_container_width=True)
+
+    st.divider()
+
+    # ---- Rookie Contract Leverage ----
+    st.subheader("Rookie Contract Leverage — The Ultimate Efficiency Play")
+    st.markdown(
+        "Players on rookie-scale contracts (≤ \\$12M) who produce above league-average BES represent "
+        "the single greatest source of competitive advantage in modern NBA roster construction. "
+        "These are the assets franchises should **protect above all else**."
+    )
+
+    rookie_scale = df[(df["SALARY_2425"] <= 12_000_000) & (df["BES"] > 50)].copy()
+    rookie_scale = rookie_scale.sort_values("CONTRACT_EFFICIENCY", ascending=False)
+    rookie_scale["Salary"] = rookie_scale["SALARY_2425"].apply(lambda s: f"${s/1_000_000:.1f}M")
+    rookie_scale["BES"] = rookie_scale["BES"].round(1)
+    rookie_scale["Value_Surplus"] = (
+        rookie_scale["CONTRACT_EFFICIENCY"] - 50
+    ).round(1)  # above median efficiency
+
+    if not rookie_scale.empty:
+        col_rk1, col_rk2 = st.columns([2, 1])
+        with col_rk1:
+            fig_rk = px.scatter(
+                rookie_scale,
+                x="SALARY_2425",
+                y="BES",
+                size="CONTRACT_EFFICIENCY",
+                color="TEAM_ABBREVIATION",
+                hover_name="PLAYER_NAME",
+                hover_data={"BES": ":.1f", "Salary": True, "ARCHETYPE": True},
+                title="High-Value Rookie-Scale Contracts (≤$12M, BES > 50)",
+                labels={"SALARY_2425": "Salary ($)", "BES": "Blazer Edge Score"},
+                size_max=20,
+                **CHART_DEFAULTS,
+            )
+            # Highlight POR players
+            por_rk = rookie_scale[rookie_scale["TEAM_ABBREVIATION"] == "POR"]
+            if not por_rk.empty:
+                fig_rk.add_trace(
+                    go.Scatter(
+                        x=por_rk["SALARY_2425"],
+                        y=por_rk["BES"],
+                        mode="markers+text",
+                        marker=dict(symbol="star", size=18, color=BLAZERS_RED,
+                                    line=dict(width=2, color="white")),
+                        text=por_rk["PLAYER_NAME"].str.split().str[-1],
+                        textposition="top center",
+                        name="Trail Blazers",
+                        hovertemplate="<b>%{text}</b> (POR)<extra></extra>",
+                    )
+                )
+            fig_rk.update_layout(height=400)
+            st.plotly_chart(fig_rk, use_container_width=True)
+
+        with col_rk2:
+            st.markdown("**Top Rookie-Scale Assets**")
+            st.dataframe(
+                rookie_scale.head(10)[["PLAYER_NAME", "TEAM_ABBREVIATION", "BES", "Salary"]].reset_index(drop=True),
+                use_container_width=True,
+                height=350,
+            )
+
+    st.divider()
+
+    # ---- The 80/20 Roster Rule ----
+    st.subheader("Production Concentration — The 80/20 Roster Rule")
+    st.markdown(
+        "Across the league, a small number of players generate a disproportionate share of team production. "
+        "Understanding this concentration shapes how to allocate cap dollars."
+    )
+
+    df_sorted = df.sort_values("BES", ascending=False).copy()
+    df_sorted["Cum_BES"] = df_sorted["BES"].cumsum()
+    df_sorted["Pct_Players"] = (np.arange(1, len(df_sorted) + 1) / len(df_sorted)) * 100
+    total_bes = df_sorted["BES"].sum()
+    df_sorted["Pct_BES"] = df_sorted["Cum_BES"] / total_bes * 100
+
+    # Find the 20% threshold
+    top20_pct_idx = int(len(df_sorted) * 0.20)
+    top20_bes_pct = df_sorted.iloc[top20_pct_idx]["Pct_BES"] if top20_pct_idx < len(df_sorted) else 0
+
+    fig_pareto = go.Figure()
+    fig_pareto.add_trace(
+        go.Scatter(
+            x=df_sorted["Pct_Players"],
+            y=df_sorted["Pct_BES"],
+            mode="lines",
+            name="Cumulative BES",
+            line=dict(color=BLAZERS_RED, width=2.5),
+            fill="tozeroy",
+            fillcolor="rgba(224,58,62,0.15)",
+        )
+    )
+    fig_pareto.add_vline(x=20, line_dash="dash", line_color="rgba(255,255,255,0.5)",
+                         annotation_text=f"Top 20% of players = {top20_bes_pct:.0f}% of BES",
+                         annotation_position="top right")
+    fig_pareto.add_hline(y=80, line_dash="dash", line_color="rgba(255,255,255,0.3)")
+    fig_pareto.update_layout(
+        title="Production Pareto Curve — Cumulative BES by Player Rank",
+        xaxis_title="% of Players (ranked by BES)",
+        yaxis_title="Cumulative % of Total BES",
+        height=380,
+        **CHART_DEFAULTS,
+    )
+    st.plotly_chart(fig_pareto, use_container_width=True)
+
+    n_top_20 = int(len(df_sorted) * 0.20)
+    top20_sal = df_sorted.head(n_top_20)["SALARY_2425"].mean() / 1_000_000
+    st.info(
+        f"The top 20% of players by BES (roughly the league's ~{n_top_20} best players) "
+        f"generate {top20_bes_pct:.0f}% of all production value. "
+        f"Their average salary: **${top20_sal:.1f}M/yr**. "
+        f"The franchise decision: spend on one of them, or stack the other 80%?"
+    )
+
+    st.divider()
+
+    # ---- Minimum Viable Contender ----
+    st.subheader("Minimum Viable Contender — What Does Playoff Production Cost?")
+    st.markdown(
+        "Simulating the minimum salary required to field a top-10 BES roster — "
+        "the cheapest path to playoff-caliber production."
+    )
+
+    top10_teams = (
+        df.groupby("TEAM_ABBREVIATION")["BES"]
+        .mean()
+        .reset_index()
+        .sort_values("BES", ascending=False)
+        .head(10)
+    )
+    playoff_bes_threshold = top10_teams["BES"].min()
+
+    # Find players with BES above playoff threshold at lowest salary
+    mvc_candidates = df[df["BES"] >= playoff_bes_threshold].sort_values("SALARY_2425")
+    mvc_5 = mvc_candidates.head(5)  # hypothetical cheapest 5-man unit
+    mvc_salary = mvc_5["SALARY_2425"].sum()
+    mvc_avg_bes = mvc_5["BES"].mean()
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Avg BES of Top-10 Teams", f"{top10_teams['BES'].mean():.1f}")
+    with c2:
+        st.metric("Playoff BES Threshold (per player)", f"{playoff_bes_threshold:.1f}")
+    with c3:
+        st.metric("Cheapest 5-Player Above-Threshold Unit", f"${mvc_salary/1_000_000:.1f}M total")
+
+    mvc_5_display = mvc_5[["PLAYER_NAME", "TEAM_ABBREVIATION", "BES", "SALARY_2425", "ARCHETYPE"]].copy()
+    mvc_5_display["BES"] = mvc_5_display["BES"].round(1)
+    mvc_5_display["Salary"] = mvc_5_display["SALARY_2425"].apply(lambda s: f"${s/1_000_000:.1f}M")
+    st.markdown("**Hypothetical 'Best Value' Starting Five** (highest BES at lowest salary):")
+    st.dataframe(
+        mvc_5_display[["PLAYER_NAME", "TEAM_ABBREVIATION", "BES", "Salary", "ARCHETYPE"]].reset_index(drop=True),
+        use_container_width=True,
+    )
+
+    st.divider()
+
+    # ---- Blazers Rebuild ROI Timeline ----
+    st.subheader("Blazers Rebuild ROI — Projected Value Curve")
+    st.markdown(
+        "Young players on rookie contracts represent **deferred value** — "
+        "the franchise is pre-paying for production that compounds over time. "
+        "This projection models expected BES trajectory of the core as they age."
+    )
+
+    por_young = df[(df["TEAM_ABBREVIATION"] == "POR") & (df["SALARY_2425"] <= 15_000_000)].copy()
+    if not por_young.empty:
+        years = list(range(0, 6))  # Next 6 seasons
+        projection_data = []
+        for _, row in por_young.iterrows():
+            current_bes = row["BES"]
+            name = row["PLAYER_NAME"]
+            salary = row["SALARY_2425"]
+            # Simple growth model: young players improve ~3-5 BES per year up to ~75, then plateau
+            for yr in years:
+                # Diminishing returns growth model
+                projected = min(75, current_bes + yr * 4.5 * (1 - current_bes / 90))
+                projection_data.append({
+                    "Player": name,
+                    "Season": f"Y+{yr}",
+                    "Projected BES": round(projected, 1),
+                    "Current Salary": salary,
+                })
+
+        proj_df = pd.DataFrame(projection_data)
+        fig_proj = px.line(
+            proj_df,
+            x="Season",
+            y="Projected BES",
+            color="Player",
+            title="Blazers Young Core — Projected BES Development Curve",
+            markers=True,
+            labels={"Projected BES": "Projected Blazer Edge Score"},
+            **CHART_DEFAULTS,
+        )
+        fig_proj.add_hline(
+            y=playoff_bes_threshold,
+            line_dash="dash",
+            line_color="rgba(0,255,136,0.5)",
+            annotation_text=f"Playoff-caliber threshold: {playoff_bes_threshold:.0f}",
+        )
+        fig_proj.update_layout(height=420)
+        st.plotly_chart(fig_proj, use_container_width=True)
+
+        # Estimate when the team crosses the playoff threshold
+        team_bes_by_year = proj_df.groupby("Season")["Projected BES"].mean().reset_index()
+        playoff_year = next(
+            (row["Season"] for _, row in team_bes_by_year.iterrows()
+             if row["Projected BES"] >= playoff_bes_threshold),
+            "Beyond Y+5"
+        )
+        st.success(
+            f"Based on current trajectory and normal young-player development, the Blazers' core "
+            f"is projected to reach **playoff-caliber average BES** by season **{playoff_year}** — "
+            f"at which point the majority of these players will still be on cost-controlled contracts."
+        )
+
+    st.divider()
+
+    # ---- Ownership Philosophy Summary ----
+    st.subheader("Strategic Summary — Efficiency-First Path to Contention")
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        st.markdown(
+            """
+**What the data shows:**
+- Rookie contracts are the league's highest-ROI assets — protect them
+- Every dollar saved on inefficient veterans = flexibility for high-leverage additions
+- Player archetype fit matters more than raw talent at comparable salary levels
+- The playoff BES threshold is attainable through development, not just spending
+
+**Where the Blazers are now:**
+- Below league average payroll efficiency (rebuilding teams always are)
+- Young core has significant upside not yet reflected in BES
+- Multiple roster spots occupied by below-threshold contracts
+"""
+        )
+    with col_s2:
+        st.markdown(
+            """
+**The Hurricanes Playbook (applied to basketball):**
+- Build on structure + system, not individual star dependency
+- Use data to identify the *type* of player that fits before paying for the name
+- Trade veterans for picks/young assets before value peaks
+- Let the draft and development machine do the heavy lifting
+- Sign free agents to market-correcting deals (buy low on declining market perception)
+
+**Bottom line:** A championship is built before it's bought.
+The data identifies the path — execution is the differentiator.
+"""
+        )
 
 # ---------------------------------------------------------------------------
 # Footer
